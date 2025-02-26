@@ -1,0 +1,6 @@
+tqdm
+numpy<2.0.0
+PyYAML
+funasr==1.2.3
+onnxruntime
+onnx
