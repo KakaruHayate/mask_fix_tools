@@ -5,3 +5,5 @@
 `python preprocess.py --source_dir <dir>`
 
 可以添加命令`--mask_breath`，这样会mask掉AP的部分而不是把这一部分保留下来
+
+`.ASS`文件编辑使用[Aegisub](https://aegisub.org/)
