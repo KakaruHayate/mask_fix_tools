@@ -147,10 +147,17 @@ class MaskUtil:
 		
 		return result_segments
 
+	def get_wave_length(self, wav_path):
+		audio, sr = torchaudio.load(wav_path)
+		wave_length = audio.size(1) / sr
+		return wave_length
+	
 	def build_mask(self, wav_path):
 		# FBL，检测数据中换气声的片段，需要以此进行后面的处理
 		if self.use_fbl:
 			breath_segments, wave_length = self.fbl_infer(wav_path)
+		else:
+			wave_length = self.get_wave_length(wav_path)
 		# VAD，数据的静音部分仍有读数，这些是不需要的
 		silence_segments = self.vad_infer(wav_path)
 		silence_segments = self.calculate_silence_segments(silence_segments, wave_length)
@@ -166,9 +173,22 @@ class MaskUtil:
 			mask_segments = silence_segments
 
 		if self.inverse_mask:
-			mask_segments = 1 - mask_segments
+			mask_segments = find_complement_intervals(mask_segments)
 		
 		return mask_segments
+
+
+def find_complement_intervals(intervals):
+    if not intervals:
+        return []
+    sorted_intervals = sorted(intervals, key=lambda x: x[0])
+    complement = []
+    for i in range(1, len(sorted_intervals)):
+        prev_end = sorted_intervals[i-1][1]
+        current_start = sorted_intervals[i][0]
+        if current_start > prev_end:
+            complement.append((prev_end, current_start))
+    return complement
 
 # import argparse
 # from icecream import ic
