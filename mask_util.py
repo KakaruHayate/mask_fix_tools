@@ -7,6 +7,7 @@ import torchaudio
 import yaml
 
 from funasr import AutoModel
+from icecream import ic
 
 def load_config_from_yaml(file_path):
 	with open(file_path, 'r') as file:
@@ -15,11 +16,13 @@ def load_config_from_yaml(file_path):
 
 
 class MaskUtil:
-	def __init__(self, fbl_onnx_path, ap_threshold=0.4, ap_dur=0.08, mask_breath=False):
+	def __init__(self, fbl_onnx_path, ap_threshold=0.4, ap_dur=0.08, use_fbl=True, mask_breath=False, inverse_mask=False):
 		super().__init__()
+		self.inverse_mask = inverse_mask
 		# FSMN-VAD
 		self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4", disable_update=True, log_level="ERROR", disable_pbar=True, disable_log=True)
 		# FBL
+		self.use_fbl = use_fbl
 		self.mask_breath = mask_breath
 		self.ap_threshold = ap_threshold
 		self.ap_dur = ap_dur
@@ -146,18 +149,25 @@ class MaskUtil:
 
 	def build_mask(self, wav_path):
 		# FBL，检测数据中换气声的片段，需要以此进行后面的处理
-		breath_segments, wave_length = self.fbl_infer(wav_path)
+		if self.use_fbl:
+			breath_segments, wave_length = self.fbl_infer(wav_path)
 		# VAD，数据的静音部分仍有读数，这些是不需要的
 		silence_segments = self.vad_infer(wav_path)
 		silence_segments = self.calculate_silence_segments(silence_segments, wave_length)
 		# 可能需要预测换气部分的Ope，也可能不需要，但总之需要处理一下一半一半的问题
-		if self.mask_breath:
-			mask_segments += breath_segments
+		if self.use_fbl:
+			if self.mask_breath:
+				mask_segments += breath_segments
+			else:
+				mask_segments = self.remove_segments_from_a_by_b(silence_segments, breath_segments)
+			# 合并
+			mask_segments = self.merge_silence_segments(mask_segments)
 		else:
-			mask_segments = self.remove_segments_from_a_by_b(silence_segments, breath_segments)
-		# 合并
-		mask_segments = self.merge_silence_segments(mask_segments)
+			mask_segments = silence_segments
 
+		if self.inverse_mask:
+			mask_segments = 1 - mask_segments
+		
 		return mask_segments
 
 # import argparse
